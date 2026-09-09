@@ -1,0 +1,196 @@
+# ─────────────────────────────────────────────
+#  Python
+# ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 빌드 / 배포
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+
+# 테스트 / 커버리지
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# 린터 / 타입체커 캐시
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+
+# ─────────────────────────────────────────────
+#  가상환경 / uv
+# ─────────────────────────────────────────────
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# [주의] uv.lock 과 .python-version 은 커밋해야 합니다.
+#        재현 가능한 환경의 핵심이므로 여기에 추가하지 마세요.
+
+
+# ─────────────────────────────────────────────
+#  환경변수 / 비밀정보
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+secrets.json
+
+
+# ─────────────────────────────────────────────
+#  Windows
+# ─────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# 설치 산출물
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+
+# ─────────────────────────────────────────────
+#  macOS
+# ─────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.apdisk
+
+
+# ─────────────────────────────────────────────
+#  JetBrains (IntelliJ IDEA / PyCharm)
+# ─────────────────────────────────────────────
+.idea/
+.idea_modules/
+*.iml
+*.iws
+*.ipr
+out/
+cmake-build-*/
+
+# 팀과 실행구성을 공유하려면 위 .idea/ 를 지우고 아래처럼 선별하세요
+# .idea/*
+# !.idea/runConfigurations/
+# !.idea/codeStyles/
+
+
+# ─────────────────────────────────────────────
+#  VS Code / Cursor
+# ─────────────────────────────────────────────
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.code-workspace
+.history/
+
+# Cursor 프로젝트 룰(.cursor/rules)은 보통 팀과 공유하므로 기본은 커밋합니다.
+# 개인 설정을 제외하려면 아래 주석을 해제하세요.
+# .cursor/
+
+# AI 에디터가 로컬에 남기는 대화/작업 기록.
+# 코드가 아니고 프롬프트 내용이 그대로 들어가므로 커밋하지 않습니다.
+.specstory/
+.aider*
+.continue/
+
+
+# ─────────────────────────────────────────────
+#  Claude Code
+# ─────────────────────────────────────────────
+.claude/settings.local.json
+
+
+# ─────────────────────────────────────────────
+#  Docker
+# ─────────────────────────────────────────────
+docker-compose.override.yml
+docker-compose.override.yaml
+
+
+# ─────────────────────────────────────────────
+#  Redis
+# ─────────────────────────────────────────────
+# redis-server 를 프로젝트 폴더에서 실행하면 지속화 파일이 여기에 생깁니다.
+# 서버 상태 스냅샷이라 코드가 아니고, 실습 중 쌓인 키가 그대로 들어 있습니다.
+dump.rdb
+*.rdb
+appendonly.aof
+appendonlydir/
+nodes.conf
+redis-server.log
+
+
+# ─────────────────────────────────────────────
+#  프로젝트 (Cache-Aside 벤치마크)
+# ─────────────────────────────────────────────
+*.log
+logs/
+
+# 시드용 원본 데이터 (용량이 크면 커밋하지 않음)
+data/raw/
+
+# [주의] bench/results/ 는 커밋합니다.
+#        결과를 리포에 남겨야 그래프를 언제든 재생성할 수 있고,
+#        그것이 실험의 신뢰 근거가 됩니다. (docs/PLAN.md 12장)
+bench/results/*.tmp
+bench/results/**/*.partial
+
+# 분석 산출물 중 중간 파일
+*.pkl
+.cache/
