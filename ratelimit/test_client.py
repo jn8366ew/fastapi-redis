@@ -8,7 +8,7 @@ LIMIT = 5
 TOTAL = 10
 
 # 포트를 인자로 받습니다. 두 방식을 동시에 띄워놓고 비교할 때 씁니다.
-#   uv run python test-api-rate-limit.py 8001
+#   uv run python -m ratelimit.test_client 8001
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
 

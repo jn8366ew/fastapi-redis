@@ -4,7 +4,8 @@
 
 캐시 무효화, 중복 요청, 세션 저장소, 분산 락처럼 **"Redis를 쓰면 해결되는 줄 알았는데 안 되는"** 지점들을 주제별로 하나씩 만들어보고, 왜 안 되는지 실제로 재현한 다음 고치는 방식으로 정리합니다.
 
-각 `.py` 파일은 **독립 실행 가능한 FastAPI 앱**이고 주제 하나씩만 다룹니다. 서로 import하지 않습니다.
+주제 하나가 폴더 하나입니다. 각 앱은 **독립 실행 가능한 FastAPI 앱**이고, 앱끼리는 서로 import하지 않습니다.
+공통 코드는 루트의 `common.py` 하나뿐입니다.
 
 ---
 
@@ -29,14 +30,23 @@ uv sync
 ### 앱 실행
 
 ```bash
-uv run fastapi dev distributed-lock.py
+uv run fastapi dev lock/distributed_lock.py
 # 또는
-uv run uvicorn distributed-lock:app --reload
+uv run uvicorn lock.distributed_lock:app --reload
 ```
 
-> 파일명에 하이픈이 들어 있지만 둘 다 동작합니다. uvicorn은 `importlib.import_module()`로
-> 모듈을 불러오는데 이 함수는 하이픈을 허용하기 때문입니다.
-> 하이픈이 문법 오류가 되는 건 파이썬 `import` **문**뿐입니다 (`import api-rate-limit` ✗).
+테스트 클라이언트와 도구는 모듈로 실행합니다.
+
+```bash
+uv run python -m lock.test_client
+uv run python -m ranking.seed --count 1000000
+```
+
+> 각 주제 폴더에 빈 `__init__.py`가 있는 것은 장식이 아닙니다. fastapi-cli는
+> `__init__.py`가 있는 동안만 상위 폴더로 거슬러 올라가 그 부모를 `sys.path`에
+> 넣습니다(`fastapi_cli/discover.py`). 이 파일이 없으면 `sys.path`에 주제 폴더만
+> 들어가서 루트의 `common.py`를 찾지 못하고 `ModuleNotFoundError`가 납니다.
+> `python -m` 실행도 같은 이유로 루트 기준이어야 합니다.
 
 - API 문서: http://localhost:8000/docs
 - Redis에 비밀번호가 걸려 있으면 `common.py`의 연결 문자열을 수정합니다.
@@ -45,18 +55,22 @@ uv run uvicorn distributed-lock:app --reload
 
 ## 구성
 
-| 파일 | 주제 | 핵심 Redis 기능 |
+| 폴더 / 파일 | 주제 | 핵심 Redis 기능 |
 |---|---|---|
-| `main.py` | Cache-Aside 패턴과 캐시 무효화 | `SET ex` / `GET` / `DEL` |
-| `shop-list.py` | 최근 본 상품 (중복 제거 + 개수 상한) | List — `LREM` `LPUSH` `LTRIM` |
-| `consistency.py` | 조회수 중복 방지, 좋아요 정합성 | Set — `SADD` `SCARD` `SISMEMBER` |
-| `temporary-code.py` | SMS 인증번호 발급/검증 | Pipeline, **Lua** |
-| `distributed-session.py` | 분산 환경 세션 저장소 | Hash — `HSET` `HGETALL`, 슬라이딩 TTL |
-| `distributed-lock.py` | 분산 락 | `SET NX PX`, **Lua**, watchdog |
-| `api-rate-limit.py` | API 요청 제한 — 고정 창(Fixed Window) | `INCR` + `EXPIRE`, 미들웨어 |
-| `token-bucket.py` | API 요청 제한 — 토큰 버킷 | Hash, **Lua**, lazy refill |
-| `test-dis-lock.py` | 분산 락 동시성 테스트 클라이언트 | `httpx` + `asyncio.gather` |
-| `test-api-rate-limit.py` | 요청 제한 테스트 클라이언트 | 실행 전 카운터 초기화 |
+| `cache/main.py` | Cache-Aside 패턴과 캐시 무효화 | `SET ex` / `GET` / `DEL` |
+| `shoplist/shop_list.py` | 최근 본 상품 (중복 제거 + 개수 상한) | List — `LREM` `LPUSH` `LTRIM` |
+| `consistency/consistency.py` | 조회수 중복 방지, 좋아요 정합성 | Set — `SADD` `SCARD` `SISMEMBER` |
+| `tempcode/temporary_code.py` | SMS 인증번호 발급/검증 | Pipeline, **Lua** |
+| `session/distributed_session.py` | 분산 환경 세션 저장소 | Hash — `HSET` `HGETALL`, 슬라이딩 TTL |
+| `lock/distributed_lock.py` | 분산 락 | `SET NX PX`, **Lua**, watchdog |
+| `lock/test_client.py` | 분산 락 동시성 테스트 클라이언트 | `httpx` + `asyncio.gather` |
+| `ratelimit/fixed_window.py` | API 요청 제한 — 고정 창(Fixed Window) | `INCR` + `EXPIRE`, 미들웨어 |
+| `ratelimit/token_bucket.py` | API 요청 제한 — 토큰 버킷 | Hash, **Lua**, lazy refill |
+| `ratelimit/test_client.py` | 요청 제한 테스트 클라이언트 | 실행 전 카운터 초기화 |
+| `ranking/realtime_ranking.py` | 실시간 랭킹 — 리더보드 | Sorted Set — `ZINCRBY` `ZRANGE REV` `ZREVRANK`, **Lua** |
+| `ranking/seed.py` | 더미 데이터 심기 + 규모별 지연 측정 | 파이프라인 배칭 |
+| `ranking/check.py` | 경계/지연/점유시간 점검 | `INFO commandstats`, `SLOWLOG` |
+| `ranking/race_test.py` | 조회 race 재현 및 Lua 적용 전후 비교 | 동시 쓰기 부하 |
 | `common.py` | 공통 lifespan, Lua 로더 | — |
 | `scripts/*.lua` | 원자성이 필요한 연산들 | — |
 | `docs/CACHE-ASIDE-PLAN.md` | Cache-Aside 효과 측정 실험 기획서 | — |
@@ -65,7 +79,7 @@ uv run uvicorn distributed-lock:app --reload
 
 ## 주제별 정리
 
-### `main.py` — Cache-Aside
+### `cache/main.py` — Cache-Aside
 
 가장 기본이 되는 캐싱 패턴. **읽을 때** 캐시를 먼저 보고 없으면 DB에서 가져와 채우고, **쓸 때** 캐시를 지웁니다(갱신이 아니라 삭제).
 
@@ -76,7 +90,7 @@ PUT  /users/{user_id}    DB 갱신 후 캐시 DEL
 
 갱신이 아니라 삭제하는 이유는, 갱신하려면 "DB 쓰기"와 "캐시 쓰기" 두 개의 순서를 맞춰야 하는데 그 사이에 다른 요청이 끼면 **오래된 값이 캐시에 영구히 박히기** 때문입니다. 지우면 다음 읽기가 알아서 최신값을 채웁니다.
 
-### `shop-list.py` — 최근 본 상품
+### `shoplist/shop_list.py` — 최근 본 상품
 
 List 하나로 "중복 없이, 최신순으로, 최대 5개"를 구현합니다.
 
@@ -88,7 +102,7 @@ await rd.ltrim(key, 0, 4)           # 5개로 자르기
 
 `LTRIM`이 핵심입니다. 애플리케이션에서 개수를 세고 자르면 그 사이에 다른 요청이 끼어들지만, Redis 명령으로 넘기면 그럴 일이 없습니다.
 
-### `consistency.py` — 조회수 / 좋아요
+### `consistency/consistency.py` — 조회수 / 좋아요
 
 `INCR`만 쓰면 새로고침 연타에 조회수가 그대로 올라갑니다. **Set의 반환값**으로 막습니다.
 
@@ -104,7 +118,7 @@ if is_new_viewer:
 
 중복 방지 Set은 날짜별 키(`...:viewers:20260909`)로 만들고 TTL로 자동 회수합니다. TTL은 **키가 새로 생겼을 때만** 겁니다 — 매번 걸면 조회가 이어지는 동안 만료가 계속 뒤로 밀립니다.
 
-### `temporary-code.py` — SMS 인증번호
+### `tempcode/temporary_code.py` — SMS 인증번호
 
 발급은 파이프라인, 검증은 Lua입니다.
 
@@ -117,7 +131,7 @@ POST /auth/verify    코드 검증
 
 코드 생성에 `random`이 아니라 `secrets`를 쓴 것도 의도적입니다. 인증번호는 예측 불가능해야 합니다.
 
-### `distributed-session.py` — 세션 저장소
+### `session/distributed_session.py` — 세션 저장소
 
 서버가 여러 대일 때 인메모리 세션은 못 씁니다. Hash로 Redis에 둡니다.
 
@@ -128,7 +142,7 @@ GET  /me       쿠키의 session_id로 조회 + TTL 갱신 (슬라이딩 만료)
 
 조회할 때마다 `EXPIRE`를 다시 걸어 **활동 중인 사용자는 로그아웃되지 않게** 합니다.
 
-### `distributed-lock.py` — 분산 락
+### `lock/distributed_lock.py` — 분산 락
 
 이 저장소에서 가장 깊게 들어간 주제. 세 단계로 쌓아올립니다.
 
@@ -168,7 +182,7 @@ finally:
 
 프로세스가 죽으면 watchdog도 같이 죽어 TTL로 락이 회수됩니다. 이게 "무한 락"이 아니라 "갱신되는 리스"로 만들어주는 안전장치입니다.
 
-### `api-rate-limit.py` — 요청 제한 (고정 창)
+### `ratelimit/fixed_window.py` — 요청 제한 (고정 창)
 
 시계를 60초 단위로 잘라 **칸마다 카운터 하나**를 둡니다. 칸 번호가 키 이름에 들어갑니다.
 
@@ -184,7 +198,7 @@ count = await rd.incr(cache_key)
 
 **한계 — 경계에서 2배가 통과합니다.** 12:00:59에 5개, 12:01:00에 5개를 쏘면 1초에 10개가 지나갑니다. 각 창은 자기 칸만 보고, 칸이 바뀌는 순간 이전 칸의 기억이 통째로 사라지기 때문입니다. 이걸 해결하는 게 토큰 버킷입니다.
 
-### `token-bucket.py` — 요청 제한 (토큰 버킷)
+### `ratelimit/token_bucket.py` — 요청 제한 (토큰 버킷)
 
 칸을 없애고 **양동이** 하나로 바꿉니다. 토큰이 최대 `CAPACITY`개 담기고, 요청 1개가 토큰 1개를 씁니다. 토큰은 일정 속도로 계속 채워집니다.
 
@@ -237,11 +251,11 @@ local now = tonumber(t[1]) + tonumber(t[2]) / 1000000
 
 ```bash
 # 터미널 1 — 서버 (둘 중 하나)
-uv run fastapi dev api-rate-limit.py     # 고정 창
-uv run fastapi dev token-bucket.py       # 토큰 버킷
+uv run fastapi dev ratelimit/fixed_window.py    # 고정 창
+uv run fastapi dev ratelimit/token_bucket.py    # 토큰 버킷
 
 # 터미널 2 — 테스트 (몇 번이든 반복 가능)
-uv run python test-api-rate-limit.py
+uv run python -m ratelimit.test_client
 ```
 
 테스트가 시작할 때 `rate_limit:*` 키를 스스로 지웁니다. 이게 없으면 두 번째 실행부터 카운터가 이어져서 전부 차단되고, 결과가 실행할 때마다 달라집니다.
@@ -249,10 +263,10 @@ uv run python test-api-rate-limit.py
 두 방식을 **동시에** 띄우려면 포트를 나누고 테스트에 포트를 넘깁니다.
 
 ```bash
-uv run fastapi dev api-rate-limit.py --port 8000
-uv run fastapi dev token-bucket.py --port 8001
+uv run fastapi dev ratelimit/fixed_window.py --port 8000
+uv run fastapi dev ratelimit/token_bucket.py --port 8001
 
-uv run python test-api-rate-limit.py 8001
+uv run python -m ratelimit.test_client 8001
 ```
 
 ### 경계 실험 — 두 방식이 갈리는 지점
@@ -284,7 +298,7 @@ uv run python test-api-rate-limit.py 8001
 
 ## 분산 락 실험해보기
 
-`distributed-lock.py` 상단의 상수 두 개로 시나리오를 바꿉니다.
+`lock/distributed_lock.py` 상단의 상수 두 개로 시나리오를 바꿉니다.
 
 ```python
 LOCK_TIMEOUT_MS = 5000   # 락 수명
@@ -294,8 +308,8 @@ WORK_SECONDS = 6         # 임계구역에서 하는 작업 길이
 서버를 띄우고 다른 터미널에서 동시 요청 10개를 보냅니다.
 
 ```bash
-uv run fastapi dev distributed-lock.py     # 터미널 1
-uv run python test-dis-lock.py             # 터미널 2
+uv run fastapi dev lock/distributed_lock.py     # 터미널 1
+uv run python -m lock.test_client             # 터미널 2
 ```
 
 서버 로그에 밀리초 타임스탬프와 함께 획득/연장/해제가 찍힙니다. `임계구역=N명` 카운터가 **2 이상이면 상호배제가 깨진 것**입니다.
@@ -354,5 +368,5 @@ result = await app.state.release_script(keys=[...], args=[...])
 - **프록시 뒤에서 무력화됩니다** — `request.client.host`가 로드밸런서 IP가 되어 전체 사용자가 버킷 하나를 공유합니다. `X-Forwarded-For`를 봐야 하는데, 그냥 믿으면 헤더 위조로 우회되므로 신뢰할 프록시 홉 수를 정해두거나 `uvicorn --proxy-headers --forwarded-allow-ips`를 지정해야 합니다.
 - **로그인 사용자는 IP 기준이면 안 됩니다** — 회사·학교는 NAT 뒤라 수백 명이 한 IP를 씁니다. 인증된 요청은 `user_id`로 버킷을 나눠야 합니다.
 - **고정 창은 차단된 요청도 카운터를 올립니다** — 계속 두드리면 계속 막히는 패널티라 의도한 것일 수 있지만, 그렇다면 의도를 명시해두는 편이 좋습니다.
-- **고정 창에는 `Retry-After` 헤더가 없습니다** — 본문 JSON에만 값이 있습니다. 표준 클라이언트와 SDK는 헤더를 봅니다 (`token-bucket.py`에는 넣어뒀습니다).
+- **고정 창에는 `Retry-After` 헤더가 없습니다** — 본문 JSON에만 값이 있습니다. 표준 클라이언트와 SDK는 헤더를 봅니다 (`ratelimit/token_bucket.py`에는 넣어뒀습니다).
 - **토큰 버킷은 단일 속도만 지원합니다** — "분당 5회 그리고 시간당 100회" 같은 다단 제한은 버킷을 여러 개 두고 모두 통과해야 허용하는 식으로 확장해야 합니다.
