@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Redis Pub/Sub 실시간 알림</title>
+</head>
+<body style="background: #1a1a1a; color: white; font-family: sans-serif; padding: 50px;">
+    <h1>🔔 실시간 시스템 공지</h1>
+    <p>현재 접속 포트: <span id="port" style="color: #deff9a; font-weight: bold;"></span></p>
+    
+    <div id="log" style="border: 1px solid #deff9a; padding: 20px; height: 300px; overflow-y: auto; background: #000; border-radius: 10px;">
+        <div style="color: #888;">알림을 기다리는 중...</div>
+    </div>
+
+    <script>
+        // 현재 브라우저가 어느 포트 서버에 접속했는지 표시
+        document.getElementById("port").innerText = window.location.port || "80";
+
+        // SSE 연결 시작
+        const eventSource = new EventSource("/stream-notices");
+        
+        eventSource.onmessage = (event) => {
+            const log = document.getElementById("log");
+            const time = new Date().toLocaleTimeString();
+            
+            // 새 알림 추가
+            const entry = document.createElement("div");
+            entry.style.marginBottom = "10px";
+            entry.innerHTML = `> <span style="color: #deff9a;">${event.data}</span> <small style="color:#666; margin-left: 10px;">(${time})</small>`;
+            
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight; // 스크롤 자동 이동
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("SSE 연결 오류:", err);
+        };
+    </script>
+</body>
+</html>
